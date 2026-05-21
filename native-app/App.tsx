@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemeProvider, useTheme } from "./src/ThemeContext";
+import { WalletProvider } from "./src/WalletContext";
 
 import HomeScreen from "./src/screens/HomeScreen";
 import SendScreen from "./src/screens/SendScreen";
@@ -91,7 +92,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppNavigator />
+        <WalletProvider>
+          <AppNavigator />
+        </WalletProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
