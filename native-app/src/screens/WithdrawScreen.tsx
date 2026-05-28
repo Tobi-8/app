@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../ThemeContext";
+import { useWallet } from "../WalletContext";
 import { LinearGradient } from "expo-linear-gradient";
 import { shadows } from "../theme";
 
@@ -13,72 +14,141 @@ const banks = [
 
 const WithdrawScreen = ({ navigation }: any) => {
   const { c } = useTheme();
+  const { balance, withdraw } = useWallet();
   const [selected, setSelected] = useState(banks[0].id);
   const [amount, setAmount] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const selectedBank = banks.find((b) => b.id === selected) || banks[0];
+
+  const handleWithdrawSubmit = () => {
+    const val = parseFloat(amount);
+    if (isNaN(val) || val <= 0) return;
+    if (val > balance) {
+      Alert.alert("Insufficient Balance", `Your current balance is $${balance.toFixed(2)}.`);
+      return;
+    }
+
+    setLoading(true);
+    setTimeout(() => {
+      withdraw(val, selectedBank.name);
+      setLoading(false);
+      setSuccess(true);
+    }, 1500);
+  };
+
+  const handleBack = () => {
+    if (success) {
+      navigation.goBack();
+    } else {
+      navigation.goBack();
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.background }]} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={20} color={c.foreground} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: c.foreground }]}>Withdraw</Text>
         </View>
 
-        <Text style={[styles.sectionLabel, { color: c.mutedForeground }]}>SELECT BANK ACCOUNT</Text>
-
-        {banks.map((bank) => (
-          <TouchableOpacity
-            key={bank.id}
-            onPress={() => setSelected(bank.id)}
-            activeOpacity={0.7}
-            style={[
-              styles.bankCard,
-              {
-                backgroundColor: selected === bank.id ? c.primary + "1A" : c.card,
-                borderColor: selected === bank.id ? c.primary + "33" : c.border + "50",
-              },
-              selected === bank.id ? {} : shadows.card,
-            ]}
-          >
-            <View style={[styles.bankIcon, { backgroundColor: selected === bank.id ? c.primary + "26" : c.secondary }]}>
-              <Ionicons name="business-outline" size={20} color={selected === bank.id ? c.primary : c.foreground} />
+        {success ? (
+          <View style={styles.successWrap}>
+            <View style={[styles.successIconWrap, { backgroundColor: c.success + "1A" }]}>
+              <Ionicons name="checkmark-circle" size={64} color={c.success} />
             </View>
-            <View>
-              <Text style={[styles.bankName, { color: c.foreground }]}>{bank.name}</Text>
-              <Text style={[styles.bankLast4, { color: c.mutedForeground }]}>••••{bank.last4}</Text>
+            <Text style={[styles.successTitle, { color: c.foreground }]}>Withdrawal Complete!</Text>
+            <Text style={[styles.successDesc, { color: c.mutedForeground }]}>
+              ${parseFloat(amount).toFixed(2)} has been sent to {selectedBank.name} (••••{selectedBank.last4}).
+            </Text>
+            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8}>
+              <LinearGradient
+                colors={c.gradientAccent as [string, string]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.ctaBtn}
+              >
+                <Text style={styles.ctaText}>Go to Dashboard</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        ) : loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={c.primary} />
+            <Text style={[styles.loadingText, { color: c.mutedForeground }]}>Transferring funds...</Text>
+          </View>
+        ) : (
+          <>
+            <Text style={[styles.sectionLabel, { color: c.mutedForeground }]}>SELECT BANK ACCOUNT</Text>
+
+            {banks.map((bank) => (
+              <TouchableOpacity
+                key={bank.id}
+                onPress={() => setSelected(bank.id)}
+                activeOpacity={0.7}
+                style={[
+                  styles.bankCard,
+                  {
+                    backgroundColor: selected === bank.id ? c.primary + "1A" : c.card,
+                    borderColor: selected === bank.id ? c.primary + "33" : c.border + "50",
+                  },
+                  selected === bank.id ? {} : shadows.card,
+                ]}
+              >
+                <View style={[styles.bankIcon, { backgroundColor: selected === bank.id ? c.primary + "26" : c.secondary }]}>
+                  <Ionicons name="business-outline" size={20} color={selected === bank.id ? c.primary : c.foreground} />
+                </View>
+                <View style={styles.methodInfo}>
+                  <Text style={[styles.bankName, { color: c.foreground }]}>{bank.name}</Text>
+                  <Text style={[styles.bankLast4, { color: c.mutedForeground }]}>••••{bank.last4}</Text>
+                </View>
+                {selected === bank.id && (
+                  <Ionicons name="checkmark-circle" size={20} color={c.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+
+            <View style={styles.balanceInfo}>
+              <Text style={{ color: c.mutedForeground, fontSize: 13 }}>Available Balance: </Text>
+              <Text style={{ color: c.foreground, fontSize: 13, fontWeight: "700" }}>
+                ${balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              </Text>
             </View>
-          </TouchableOpacity>
-        ))}
 
-        <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 28 }]}>AMOUNT</Text>
-        <View style={[styles.amountWrap, { backgroundColor: c.card, borderColor: c.border + "50" }, shadows.card]}>
-          <Text style={[styles.dollarSign, { color: c.foreground }]}>$</Text>
-          <TextInput
-            placeholder="0.00"
-            placeholderTextColor={c.mutedForeground + "66"}
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="numeric"
-            style={[styles.amountInput, { color: c.foreground }]}
-          />
-        </View>
+            <Text style={[styles.sectionLabel, { color: c.mutedForeground, marginTop: 28 }]}>AMOUNT</Text>
+            <View style={[styles.amountWrap, { backgroundColor: c.card, borderColor: c.border + "50" }, shadows.card]}>
+              <Text style={[styles.dollarSign, { color: c.foreground }]}>$</Text>
+              <TextInput
+                placeholder="0.00"
+                placeholderTextColor={c.mutedForeground + "66"}
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="numeric"
+                style={[styles.amountInput, { color: c.foreground }]}
+              />
+            </View>
 
-        <TouchableOpacity
-          disabled={!amount || parseFloat(amount) === 0}
-          activeOpacity={0.8}
-          style={{ marginTop: 28 }}
-        >
-          <LinearGradient
-            colors={c.gradientAccent as [string, string]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.ctaBtn, (!amount || parseFloat(amount) === 0) && { opacity: 0.4 }]}
-          >
-            <Text style={styles.ctaText}>Withdraw</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <TouchableOpacity
+              disabled={!amount || parseFloat(amount) === 0}
+              onPress={handleWithdrawSubmit}
+              activeOpacity={0.8}
+              style={{ marginTop: 28 }}
+            >
+              <LinearGradient
+                colors={c.gradientAccent as [string, string]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.ctaBtn, (!amount || parseFloat(amount) === 0) && { opacity: 0.4 }]}
+              >
+                <Text style={styles.ctaText}>Withdraw</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -96,8 +166,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, marginBottom: 10,
   },
   bankIcon: { width: 44, height: 44, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  methodInfo: { flex: 1 },
   bankName: { fontSize: 14, fontWeight: "600" },
   bankLast4: { fontSize: 12 },
+  balanceInfo: { flexDirection: "row", marginTop: 8 },
   amountWrap: {
     flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 16,
     borderRadius: 16, borderWidth: 1,
@@ -106,6 +178,12 @@ const styles = StyleSheet.create({
   amountInput: { flex: 1, fontSize: 18, fontWeight: "700" },
   ctaBtn: { paddingVertical: 16, borderRadius: 16, alignItems: "center" },
   ctaText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  loadingWrap: { paddingVertical: 40, alignItems: "center" },
+  loadingText: { marginTop: 12, fontSize: 14, fontWeight: "500" },
+  successWrap: { alignItems: "center", paddingVertical: 40 },
+  successIconWrap: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center", marginBottom: 20 },
+  successTitle: { fontSize: 22, fontWeight: "800", marginBottom: 8 },
+  successDesc: { fontSize: 14, color: "#666", textAlign: "center", paddingHorizontal: 40, marginBottom: 32 },
 });
 
 export default WithdrawScreen;
