@@ -1,14 +1,19 @@
 use tower_http::cors::CorsLayer;
+use tower_http::trace::TraceLayer;
 use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() {
+    // Initialize tracing subscriber
+    tracing_subscriber::fmt::init();
+
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
 
     // 1. Initialize API router with CORS enabled for seamless frontend calls
     let app = wow_engine::api::create_router()
-        .layer(CorsLayer::permissive());
+        .layer(CorsLayer::permissive())
+        .layer(TraceLayer::new_for_http());
 
     // 2. Bind TCP listener on configured port or fallback to 8080
     let port: u16 = std::env::var("PORT")
