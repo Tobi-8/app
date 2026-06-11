@@ -21,6 +21,15 @@ impl Sep24Client {
     ) -> Result<Sep24InteractiveResponse, anyhow::Error> {
         let tx_id = format!("tx_sep24_{}", uuid_fast());
         
+        super::tracker::insert_transaction(super::tracker::Transaction {
+            id: tx_id.clone(),
+            status: "pending_user_transfer_start".to_string(),
+            asset_code: asset_code.to_string(),
+            account: account.to_string(),
+            amount_in: None,
+            amount_out: None,
+        });
+
         // Simulates query to anchor's `https://<domain>/sep24/transactions/deposit/interactive`
         let interactive_url = format!(
             "https://{}/sep24/interactive?asset_code={}&account={}&transaction_id={}&callback=postMessage",
@@ -42,6 +51,15 @@ impl Sep24Client {
     ) -> Result<Sep24InteractiveResponse, anyhow::Error> {
         let tx_id = format!("tx_sep24_{}", uuid_fast());
         
+        super::tracker::insert_transaction(super::tracker::Transaction {
+            id: tx_id.clone(),
+            status: "pending_user_transfer_start".to_string(),
+            asset_code: asset_code.to_string(),
+            account: account.to_string(),
+            amount_in: None,
+            amount_out: None,
+        });
+
         // Simulates query to anchor's `https://<domain>/sep24/transactions/withdraw/interactive`
         let interactive_url = format!(
             "https://{}/sep24/interactive/withdraw?asset_code={}&account={}&transaction_id={}&callback=postMessage",
