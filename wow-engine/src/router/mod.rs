@@ -66,10 +66,13 @@ impl RoutePlanner {
             }
         }
 
-        // Sort routes: highest amount_out first, then lowest estimated_fee_usd
-        routes.sort_by(|a, b| {
-            b.amount_out.cmp(&a.amount_out)
-                .then_with(|| a.estimated_fee_usd.partial_cmp(&b.estimated_fee_usd).unwrap_or(std::cmp::Ordering::Equal))
+        // Sort routes: highest amount_out first, then lowest estimated_fee_usd.
+        // We use a scaled key to bypass floating-point comparisons for sorting.
+        routes.sort_by_key(|r| {
+            (
+                std::cmp::Reverse(r.amount_out),
+                (r.estimated_fee_usd * 100.0) as u64,
+            )
         });
 
         Ok(routes)
