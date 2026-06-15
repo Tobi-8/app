@@ -107,4 +107,21 @@ mod tests {
         assert_eq!(routes[1].provider, "deBridge DLN");
         assert_eq!(routes[1].amount_out, 9990);
     }
+
+    #[tokio::test]
+    async fn test_find_best_route_non_usdc() {
+        let planner = RoutePlanner::new();
+        let routes = planner.find_best_route(
+            Chain::Solana,
+            Chain::Stellar,
+            "SOL",
+            "XLM",
+            10000,
+        ).await.unwrap();
+
+        // Non-USDC route should only use deBridge DLN (since Circle CCTP is USDC only)
+        assert_eq!(routes.len(), 1);
+        assert_eq!(routes[0].provider, "deBridge DLN");
+        assert_eq!(routes[0].amount_out, 9990);
+    }
 }
