@@ -2,7 +2,7 @@
 
 Wow Engine is a high-performance, modular Rust-based bridging and routing service. It is designed to route multi-chain tokens into the Stellar network and facilitate instant fiat on-ramping and off-ramping via Stellar anchors.
 
-This service acts as the shared transaction backend for the Whales of Wallstreet (WOW) ecosystem, including the Web App and Native App.
+This service acts as the shared transaction backend for the Whales of Wallstreet (WOW) ecosystem including the Web App and Native App
 
 ## How It Works
 
