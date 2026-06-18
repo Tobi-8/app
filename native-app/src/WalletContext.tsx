@@ -30,36 +30,66 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const deposit = (amount: number, method: string) => {
-    const tx: Transaction = {
-      id: `t_${Date.now()}`,
-      type: "received",
-      name: method,
-      username: `@${method.toLowerCase().replace(" ", "")}`,
-      avatar: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&q=80&w=200&h=200",
-      amount,
-      note: `Deposited via ${method}`,
-      date: "Just now",
-      status: "completed",
-    };
-    setTransactions((prev) => [tx, ...prev]);
-    setBalance((prev) => prev + amount);
+  const deposit = async (amount: number, method: string) => {
+    try {
+      const res = await fetch("http://localhost:8080/api/v1/anchor/deposit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anchor_domain: method,
+          asset_code: "USDC",
+          account: "GA5Z3IX5VQ3N6FB77T342A27RWRN7CKEZ63M3W7S5VJB3D77J6F2JAFK"
+        })
+      });
+      if (!res.ok) throw new Error("Deposit failed");
+      
+      const tx: Transaction = {
+        id: `t_${Date.now()}`,
+        type: "received",
+        name: method,
+        username: `@${method.toLowerCase().replace(" ", "")}`,
+        avatar: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&q=80&w=200&h=200",
+        amount,
+        note: `Deposited via ${method}`,
+        date: "Just now",
+        status: "completed",
+      };
+      setTransactions((prev) => [tx, ...prev]);
+      setBalance((prev) => prev + amount);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
-  const withdraw = (amount: number, bank: string) => {
-    const tx: Transaction = {
-      id: `t_${Date.now()}`,
-      type: "sent",
-      name: bank,
-      username: `@${bank.toLowerCase().replace(" ", "")}`,
-      avatar: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&q=80&w=200&h=200",
-      amount,
-      note: `Withdrew to ${bank}`,
-      date: "Just now",
-      status: "completed",
-    };
-    setTransactions((prev) => [tx, ...prev]);
-    setBalance((prev) => prev - amount);
+  const withdraw = async (amount: number, bank: string) => {
+    try {
+      const res = await fetch("http://localhost:8080/api/v1/anchor/withdraw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anchor_domain: bank,
+          asset_code: "USDC",
+          account: "GA5Z3IX5VQ3N6FB77T342A27RWRN7CKEZ63M3W7S5VJB3D77J6F2JAFK"
+        })
+      });
+      if (!res.ok) throw new Error("Withdrawal failed");
+
+      const tx: Transaction = {
+        id: `t_${Date.now()}`,
+        type: "sent",
+        name: bank,
+        username: `@${bank.toLowerCase().replace(" ", "")}`,
+        avatar: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&q=80&w=200&h=200",
+        amount,
+        note: `Withdrew to ${bank}`,
+        date: "Just now",
+        status: "completed",
+      };
+      setTransactions((prev) => [tx, ...prev]);
+      setBalance((prev) => prev - amount);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (
