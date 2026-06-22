@@ -38,13 +38,7 @@ const WithdrawScreen = ({ navigation }: any) => {
     }, 1500);
   };
 
-  const handleBack = () => {
-    if (success) {
-      navigation.goBack();
-    } else {
-      navigation.goBack();
-    }
-  };
+  const handleBack = () => navigation.goBack();
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.background }]} edges={["top"]}>
