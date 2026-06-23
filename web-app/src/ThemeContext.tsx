@@ -15,14 +15,19 @@ const ThemeContext = createContext<{
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window !== "undefined" && window.matchMedia) {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("wow_theme");
+      if (saved === "dark" || saved === "light") return saved;
+      if (window.matchMedia) {
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
     }
     return "light";
   });
 
   const setTheme = (t: Theme) => {
     setThemeState(t);
+    localStorage.setItem("wow_theme", t);
   };
 
   useEffect(() => {
