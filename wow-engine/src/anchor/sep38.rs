@@ -64,8 +64,4 @@ impl Sep38Client {
     }
 }
 
-fn uuid_fast() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let start = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-    format!("{:x}", start & 0xFFFFFFFFFFFFFFF)
-}
+
