@@ -38,7 +38,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
         body: JSON.stringify({
           anchor_domain: method,
           asset_code: "USDC",
-          account: "GA5Z3IX5VQ3N6FB77T342A27RWRN7CKEZ63M3W7S5VJB3D77J6F2JAFK"
+          account: initialUser.stellarAddress
         })
       });
       if (!res.ok) throw new Error("Deposit failed");
@@ -69,7 +69,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
         body: JSON.stringify({
           anchor_domain: bank,
           asset_code: "USDC",
-          account: "GA5Z3IX5VQ3N6FB77T342A27RWRN7CKEZ63M3W7S5VJB3D77J6F2JAFK"
+          account: initialUser.stellarAddress
         })
       });
       if (!res.ok) throw new Error("Withdrawal failed");

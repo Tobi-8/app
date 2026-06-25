@@ -4,6 +4,7 @@ export const currentUser = {
   email: "victor@email.com",
   avatar: "https://i.pravatar.cc/150?img=12",
   balance: 1240.5,
+  stellarAddress: "GA5Z3IX5VQ3N6FB77T342A27RWRN7CKEZ63M3W7S5VJB3D77J6F2JAFK",
 };
 
 export const contacts = [
