@@ -3,11 +3,12 @@ import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet } from "rea
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../ThemeContext";
-import { transactions } from "../data/mockData";
+import { useWallet } from "../WalletContext";
 import { shadows } from "../theme";
 
 const TransactionDetailScreen = ({ navigation, route }: any) => {
   const { c } = useTheme();
+  const { transactions } = useWallet();
   const { id } = route.params;
   const tx = transactions.find((t) => t.id === id);
   const [showTech, setShowTech] = useState(false);
