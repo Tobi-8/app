@@ -1,15 +1,15 @@
 use crate::anchor::Sep24InteractiveResponse;
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 
 pub struct Sep24Client {
     #[allow(dead_code)]
-    client: Client,
+    client: ClientWithMiddleware,
 }
 
 impl Sep24Client {
     pub fn new() -> Self {
         Self {
-            client: Client::new(),
+            client: crate::http_client::build_resilient_client().expect("Failed to build resilient HTTP client"),
         }
     }
 

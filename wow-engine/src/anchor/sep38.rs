@@ -1,15 +1,15 @@
 use crate::anchor::Sep38Quote;
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 
 pub struct Sep38Client {
     #[allow(dead_code)]
-    client: Client,
+    client: ClientWithMiddleware,
 }
 
 impl Sep38Client {
     pub fn new() -> Self {
         Self {
-            client: Client::new(),
+            client: crate::http_client::build_resilient_client().expect("Failed to build resilient HTTP client"),
         }
     }
 

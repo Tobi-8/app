@@ -1,15 +1,15 @@
 use crate::bridge::{BridgeProvider, BridgeQuote, Chain};
-use reqwest::Client;
+use reqwest_middleware::ClientWithMiddleware;
 
 pub struct DeBridgeClient {
     #[allow(dead_code)]
-    client: Client,
+    client: ClientWithMiddleware,
 }
 
 impl DeBridgeClient {
     pub fn new() -> Self {
         Self {
-            client: Client::new(),
+            client: crate::http_client::build_resilient_client().expect("Failed to build resilient HTTP client"),
         }
     }
 }
