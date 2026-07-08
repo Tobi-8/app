@@ -4,10 +4,12 @@ pub mod tracker;
 
 use serde::{Deserialize, Serialize};
 
-/// Generates a unique standard UUID v4.
+/// Generates a time-ordered standard UUID v7.
 /// Used across SEP-24 and SEP-38 flows to assign transaction and quote IDs.
+/// UUIDv7 combines a Unix timestamp with random data, making it lexicographically
+/// sortable by time, which is highly optimized for database indexing.
 pub(super) fn generate_uuid() -> String {
-    uuid::Uuid::new_v4().to_string()
+    uuid::Uuid::now_v7().to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
