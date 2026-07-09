@@ -23,4 +23,5 @@ tracing = "0.1.44"
 envy = "0.4.2"
 
 [dev-dependencies]
+axum-test = "16"
 wiremock = "0.6.5"
