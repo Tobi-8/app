@@ -3,25 +3,25 @@ use tower_http::trace::TraceLayer;
 use std::net::SocketAddr;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     // Initialize tracing subscriber
     tracing_subscriber::fmt::init();
 
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
+    
+    // Load strongly-typed configuration
+    let config = wow_engine::config::AppConfig::load()?;
 
     // 1. Initialize API router with CORS enabled for seamless frontend calls
     let app = wow_engine::api::create_router()
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http());
 
-    // 2. Bind TCP listener on configured port or fallback to 8080
-    let port: u16 = std::env::var("PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(8080);
+    // 2. Bind TCP listener on configured port
+    let port = config.port;
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind to socket address");
+    let listener = tokio::net::TcpListener::bind(addr).await?;
     
     tracing::info!("Wow Engine is booting up and routing pipeline conversions...");
     tracing::info!("   Listening on: http://{}", addr);
@@ -33,5 +33,7 @@ async fn main() {
     tracing::info!("     - POST /api/v1/anchor/quote    (SEP-38 Anchor Quotes)");
 
     // 3. Serve incoming TCP requests through Axum pipeline
-    axum::serve(listener, app).await.expect("Failed to run Axum server");
+    axum::serve(listener, app).await?;
+    
+    Ok(())
 }
