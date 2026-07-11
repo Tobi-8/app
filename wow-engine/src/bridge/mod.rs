@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Chain {
     Ethereum,
     Solana,

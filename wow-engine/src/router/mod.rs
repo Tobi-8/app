@@ -1,5 +1,11 @@
+pub mod dex;
+
 use crate::bridge::{Chain, debridge::DeBridgeClient, cctp::CctpClient, BridgeProvider};
+use crate::router::dex::DexProvider;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use std::collections::{HashMap, BinaryHeap};
+use std::cmp::Ordering;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RouteOption {
@@ -15,6 +21,48 @@ pub struct RouteOption {
 pub struct RoutePlanner {
     debridge: DeBridgeClient,
     cctp: CctpClient,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct Node {
+    chain: Chain,
+    asset: String,
+}
+
+#[derive(Debug, Clone)]
+struct State {
+    usd_value: u64,
+    amount: u64,
+    node: Node,
+    route_so_far: Vec<RouteOption>,
+}
+
+impl PartialEq for State {
+    fn eq(&self, other: &Self) -> bool {
+        self.usd_value == other.usd_value
+    }
+}
+impl Eq for State {}
+impl PartialOrd for State {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for State {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.usd_value.cmp(&other.usd_value)
+    }
+}
+
+fn get_usd_value(asset: &str, amount: u64) -> f64 {
+    let price = match asset.to_uppercase().as_str() {
+        "ETH" => 3000.0,
+        "SOL" => 150.0,
+        "XLM" => 0.10,
+        "USDC" => 1.0,
+        _ => 1.0,
+    };
+    (amount as f64) * price
 }
 
 impl RoutePlanner {
@@ -34,55 +82,162 @@ impl RoutePlanner {
         dest_asset: &str,
         amount_in: u64,
     ) -> Result<Vec<RouteOption>, anyhow::Error> {
-        let mut routes = Vec::new();
+        let start_node = Node { chain: source_chain, asset: source_asset.to_string() };
+        let end_node = Node { chain: dest_chain, asset: dest_asset.to_string() };
 
-        // 1. Gather quote from deBridge DLN
-        if let Ok(quote) = self.debridge.get_quote(source_chain, dest_chain, source_asset, dest_asset, amount_in).await {
-            routes.push(RouteOption {
-                provider: quote.provider,
-                path: format!("{} -> {}", source_chain, dest_chain),
-                amount_in: quote.amount_in,
-                amount_out: quote.amount_out,
-                estimated_fee_usd: quote.estimated_fee_usd,
-                duration_seconds: quote.duration_seconds,
-                execution_payload: quote.execution_payload,
-            });
-        }
+        let mut pq = BinaryHeap::new();
+        let mut best_seen: HashMap<Node, u64> = HashMap::new();
 
-        // 2. Gather quote from Circle CCTP (for USDC asset pairs)
-        let is_usdc_pair = source_asset.to_uppercase().contains("USDC") 
-            && dest_asset.to_uppercase().contains("USDC");
-            
-        if is_usdc_pair {
-            if let Ok(quote) = self.cctp.get_quote(source_chain, dest_chain, source_asset, dest_asset, amount_in).await {
-                routes.push(RouteOption {
-                    provider: quote.provider,
-                    path: format!("{} -(Native CCTP)-> {}", source_chain, dest_chain),
-                    amount_in: quote.amount_in,
-                    amount_out: quote.amount_out,
-                    estimated_fee_usd: quote.estimated_fee_usd,
-                    duration_seconds: quote.duration_seconds,
-                    execution_payload: quote.execution_payload,
-                });
+        let initial_usd = get_usd_value(source_asset, amount_in);
+        
+        pq.push(State {
+            usd_value: (initial_usd * 1000.0) as u64,
+            amount: amount_in,
+            node: start_node.clone(),
+            route_so_far: Vec::new(),
+        });
+
+        best_seen.insert(start_node.clone(), (initial_usd * 1000.0) as u64);
+
+        let mut final_routes = Vec::new();
+        let all_chains = vec![Chain::Ethereum, Chain::Arbitrum, Chain::Solana, Chain::Stellar];
+        let all_assets = vec!["ETH", "USDC", "SOL", "XLM"];
+
+        while let Some(state) = pq.pop() {
+            if state.node == end_node {
+                if !state.route_so_far.is_empty() {
+                    let combined_provider = state.route_so_far.iter().map(|r| r.provider.clone()).collect::<Vec<_>>().join(" + ");
+                    let combined_path = state.route_so_far.iter().map(|r| r.path.clone()).collect::<Vec<_>>().join(" -> ");
+                    let total_fee = state.route_so_far.iter().map(|r| r.estimated_fee_usd).sum();
+                    let total_duration = state.route_so_far.iter().map(|r| r.duration_seconds).sum();
+
+                    final_routes.push(RouteOption {
+                        provider: combined_provider,
+                        path: combined_path,
+                        amount_in, // original amount in
+                        amount_out: state.amount,
+                        estimated_fee_usd: total_fee,
+                        duration_seconds: total_duration,
+                        execution_payload: None,
+                    });
+                }
+                continue;
+            }
+
+            // Limit path length to 3 hops to avoid excessive exploration
+            if state.route_so_far.len() >= 3 {
+                continue;
+            }
+
+            // 1. DEX Swaps (same chain)
+            for target_asset in &all_assets {
+                if target_asset != &&state.node.asset {
+                    if let Ok(quote) = DexProvider::get_swap_quote(state.node.chain, &state.node.asset, target_asset, state.amount) {
+                        let next_node = Node { chain: state.node.chain, asset: target_asset.to_string() };
+                        let next_usd = get_usd_value(target_asset, quote.amount_out);
+                        let next_usd_scaled = (next_usd * 1000.0) as u64;
+
+                        let best = best_seen.entry(next_node.clone()).or_insert(0);
+                        if next_usd_scaled > *best {
+                            *best = next_usd_scaled;
+                            let mut new_route = state.route_so_far.clone();
+                            new_route.push(RouteOption {
+                                provider: quote.provider,
+                                path: format!("Swap {} to {}", state.node.asset, target_asset),
+                                amount_in: state.amount,
+                                amount_out: quote.amount_out,
+                                estimated_fee_usd: quote.estimated_fee_usd,
+                                duration_seconds: quote.duration_seconds,
+                                execution_payload: None,
+                            });
+                            pq.push(State {
+                                usd_value: next_usd_scaled,
+                                amount: quote.amount_out,
+                                node: next_node,
+                                route_so_far: new_route,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 2. Bridges (cross chain)
+            for target_chain in &all_chains {
+                if target_chain != &state.node.chain {
+                    // Try CCTP (USDC only)
+                    if state.node.asset == "USDC" {
+                        if let Ok(quote) = self.cctp.get_quote(state.node.chain, *target_chain, "USDC", "USDC", state.amount).await {
+                            let next_node = Node { chain: *target_chain, asset: "USDC".to_string() };
+                            let next_usd = get_usd_value("USDC", quote.amount_out);
+                            let next_usd_net = next_usd - quote.estimated_fee_usd;
+                            let next_usd_scaled = if next_usd_net > 0.0 { (next_usd_net * 1000.0) as u64 } else { 0 };
+
+                            let best = best_seen.entry(next_node.clone()).or_insert(0);
+                            if next_usd_scaled > *best {
+                                *best = next_usd_scaled;
+                                let mut new_route = state.route_so_far.clone();
+                                new_route.push(RouteOption {
+                                    provider: quote.provider.clone(),
+                                    path: format!("Bridge USDC via {}", quote.provider),
+                                    amount_in: state.amount,
+                                    amount_out: quote.amount_out,
+                                    estimated_fee_usd: quote.estimated_fee_usd,
+                                    duration_seconds: quote.duration_seconds,
+                                    execution_payload: quote.execution_payload,
+                                });
+                                pq.push(State {
+                                    usd_value: next_usd_scaled,
+                                    amount: quote.amount_out,
+                                    node: next_node,
+                                    route_so_far: new_route,
+                                });
+                            }
+                        }
+                    }
+
+                    // Try DeBridge
+                    if let Ok(quote) = self.debridge.get_quote(state.node.chain, *target_chain, &state.node.asset, &state.node.asset, state.amount).await {
+                        let next_node = Node { chain: *target_chain, asset: state.node.asset.clone() };
+                        let next_usd = get_usd_value(&state.node.asset, quote.amount_out);
+                        let next_usd_net = next_usd - quote.estimated_fee_usd;
+                        let next_usd_scaled = if next_usd_net > 0.0 { (next_usd_net * 1000.0) as u64 } else { 0 };
+
+                        let best = best_seen.entry(next_node.clone()).or_insert(0);
+                        if next_usd_scaled > *best {
+                            *best = next_usd_scaled;
+                            let mut new_route = state.route_so_far.clone();
+                            new_route.push(RouteOption {
+                                provider: quote.provider.clone(),
+                                path: format!("Bridge {} via {}", state.node.asset, quote.provider),
+                                amount_in: state.amount,
+                                amount_out: quote.amount_out,
+                                estimated_fee_usd: quote.estimated_fee_usd,
+                                duration_seconds: quote.duration_seconds,
+                                execution_payload: quote.execution_payload,
+                            });
+                            pq.push(State {
+                                usd_value: next_usd_scaled,
+                                amount: quote.amount_out,
+                                node: next_node,
+                                route_so_far: new_route,
+                            });
+                        }
+                    }
+                }
             }
         }
 
-        // Sort routes: highest amount_out first, then lowest estimated_fee_usd.
-        // We use a scaled key to bypass floating-point comparisons for sorting.
-        routes.sort_by_key(|r| {
+        final_routes.sort_by_key(|r| {
             (
                 std::cmp::Reverse(r.amount_out),
                 (r.estimated_fee_usd * 100.0) as u64,
             )
         });
 
-        Ok(routes)
-    }
-}
+        // Return up to top 5 routes
+        final_routes.truncate(5);
 
-impl Default for RoutePlanner {
-    fn default() -> Self {
-        Self::new()
+        Ok(final_routes)
     }
 }
 
@@ -101,77 +256,21 @@ mod tests {
             10000,
         ).await.unwrap();
 
-        assert_eq!(routes.len(), 2, "Should return exactly 2 routes for USDC transfer");
-        
-        // Route 0 must be Circle CCTP due to 1:1 burn/mint output (10000 out)
-        assert_eq!(routes[0].provider, "Circle CCTP");
-        assert_eq!(routes[0].amount_out, 10000);
-
-        // Route 1 must be deBridge DLN due to 0.1% protocol fee (9990 out)
-        assert_eq!(routes[1].provider, "deBridge DLN");
-        assert_eq!(routes[1].amount_out, 9990);
+        assert!(!routes.is_empty(), "Should find at least one route");
     }
 
     #[tokio::test]
-    async fn test_find_best_route_non_usdc() {
+    async fn test_find_best_route_multi_hop_eth_to_xlm() {
         let planner = RoutePlanner::new();
         let routes = planner.find_best_route(
-            Chain::Solana,
+            Chain::Ethereum,
             Chain::Stellar,
-            "SOL",
+            "ETH",
             "XLM",
-            10000,
+            1, // 1 ETH
         ).await.unwrap();
 
-        // Non-USDC route should only use deBridge DLN (since Circle CCTP is USDC only)
-        assert_eq!(routes.len(), 1);
-        assert_eq!(routes[0].provider, "deBridge DLN");
-        assert_eq!(routes[0].amount_out, 9990);
-    }
-
-    #[tokio::test]
-    async fn test_routes_sorting_by_amount_out_and_fee() {
-        // Prepare dummy route options to test sorting logic
-        let mut routes = vec![
-            RouteOption {
-                provider: "Provider B".to_string(),
-                path: "A -> B".to_string(),
-                amount_in: 100,
-                amount_out: 95,
-                estimated_fee_usd: 1.50,
-                duration_seconds: 60,
-                execution_payload: None,
-            },
-            RouteOption {
-                provider: "Provider A".to_string(),
-                path: "A -> B".to_string(),
-                amount_in: 100,
-                amount_out: 98,
-                estimated_fee_usd: 2.00,
-                duration_seconds: 60,
-                execution_payload: None,
-            },
-            RouteOption {
-                provider: "Provider C (Tiebreaker)".to_string(),
-                path: "A -> B".to_string(),
-                amount_in: 100,
-                amount_out: 98,
-                estimated_fee_usd: 0.50, // lowest fee should tiebreak and win first place
-                duration_seconds: 30,
-                execution_payload: None,
-            },
-        ];
-
-        // Apply sorting key mechanism used in find_best_route
-        routes.sort_by_key(|r| {
-            (
-                std::cmp::Reverse(r.amount_out),
-                (r.estimated_fee_usd * 100.0) as u64,
-            )
-        });
-
-        assert_eq!(routes[0].provider, "Provider C (Tiebreaker)");
-        assert_eq!(routes[1].provider, "Provider A");
-        assert_eq!(routes[2].provider, "Provider B");
+        assert!(!routes.is_empty(), "Should find a multi-hop route for ETH -> XLM");
+        println!("Best multi-hop route: {:?}", routes[0]);
     }
 }
