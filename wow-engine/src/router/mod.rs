@@ -1,11 +1,13 @@
 pub mod dex;
 
-use crate::bridge::{Chain, debridge::DeBridgeClient, cctp::CctpClient, BridgeProvider, gas_oracle::GasOracle};
+use crate::bridge::{
+    cctp::CctpClient, debridge::DeBridgeClient, gas_oracle::GasOracle, BridgeProvider, Chain,
+};
 use crate::router::dex::DexProvider;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::collections::{HashMap, BinaryHeap};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RouteOption {
@@ -65,6 +67,12 @@ fn get_usd_value(asset: &str, amount: u64) -> f64 {
     (amount as f64) * price
 }
 
+impl Default for RoutePlanner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RoutePlanner {
     pub fn new() -> Self {
         let oracle = Arc::new(GasOracle::new());
@@ -83,14 +91,20 @@ impl RoutePlanner {
         dest_asset: &str,
         amount_in: u64,
     ) -> Result<Vec<RouteOption>, anyhow::Error> {
-        let start_node = Node { chain: source_chain, asset: source_asset.to_string() };
-        let end_node = Node { chain: dest_chain, asset: dest_asset.to_string() };
+        let start_node = Node {
+            chain: source_chain,
+            asset: source_asset.to_string(),
+        };
+        let end_node = Node {
+            chain: dest_chain,
+            asset: dest_asset.to_string(),
+        };
 
         let mut pq = BinaryHeap::new();
         let mut best_seen: HashMap<Node, u64> = HashMap::new();
 
         let initial_usd = get_usd_value(source_asset, amount_in);
-        
+
         pq.push(State {
             usd_value: (initial_usd * 1000.0) as u64,
             amount: amount_in,
@@ -101,16 +115,32 @@ impl RoutePlanner {
         best_seen.insert(start_node.clone(), (initial_usd * 1000.0) as u64);
 
         let mut final_routes = Vec::new();
-        let all_chains = vec![Chain::Ethereum, Chain::Arbitrum, Chain::Solana, Chain::Stellar];
+        let all_chains = vec![
+            Chain::Ethereum,
+            Chain::Arbitrum,
+            Chain::Solana,
+            Chain::Stellar,
+        ];
         let all_assets = vec!["ETH", "USDC", "SOL", "XLM"];
 
         while let Some(state) = pq.pop() {
             if state.node == end_node {
                 if !state.route_so_far.is_empty() {
-                    let combined_provider = state.route_so_far.iter().map(|r| r.provider.clone()).collect::<Vec<_>>().join(" + ");
-                    let combined_path = state.route_so_far.iter().map(|r| r.path.clone()).collect::<Vec<_>>().join(" -> ");
+                    let combined_provider = state
+                        .route_so_far
+                        .iter()
+                        .map(|r| r.provider.clone())
+                        .collect::<Vec<_>>()
+                        .join(" + ");
+                    let combined_path = state
+                        .route_so_far
+                        .iter()
+                        .map(|r| r.path.clone())
+                        .collect::<Vec<_>>()
+                        .join(" -> ");
                     let total_fee = state.route_so_far.iter().map(|r| r.estimated_fee_usd).sum();
-                    let total_duration = state.route_so_far.iter().map(|r| r.duration_seconds).sum();
+                    let total_duration =
+                        state.route_so_far.iter().map(|r| r.duration_seconds).sum();
 
                     final_routes.push(RouteOption {
                         provider: combined_provider,
@@ -132,9 +162,17 @@ impl RoutePlanner {
 
             // 1. DEX Swaps (same chain)
             for target_asset in &all_assets {
-                if target_asset != &&state.node.asset {
-                    if let Ok(quote) = DexProvider::get_swap_quote(state.node.chain, &state.node.asset, target_asset, state.amount) {
-                        let next_node = Node { chain: state.node.chain, asset: target_asset.to_string() };
+                if target_asset != &state.node.asset {
+                    if let Ok(quote) = DexProvider::get_swap_quote(
+                        state.node.chain,
+                        &state.node.asset,
+                        target_asset,
+                        state.amount,
+                    ) {
+                        let next_node = Node {
+                            chain: state.node.chain,
+                            asset: target_asset.to_string(),
+                        };
                         let next_usd = get_usd_value(target_asset, quote.amount_out);
                         let next_usd_scaled = (next_usd * 1000.0) as u64;
 
@@ -167,11 +205,28 @@ impl RoutePlanner {
                 if target_chain != &state.node.chain {
                     // Try CCTP (USDC only)
                     if state.node.asset == "USDC" {
-                        if let Ok(quote) = self.cctp.get_quote(state.node.chain, *target_chain, "USDC", "USDC", state.amount).await {
-                            let next_node = Node { chain: *target_chain, asset: "USDC".to_string() };
+                        if let Ok(quote) = self
+                            .cctp
+                            .get_quote(
+                                state.node.chain,
+                                *target_chain,
+                                "USDC",
+                                "USDC",
+                                state.amount,
+                            )
+                            .await
+                        {
+                            let next_node = Node {
+                                chain: *target_chain,
+                                asset: "USDC".to_string(),
+                            };
                             let next_usd = get_usd_value("USDC", quote.amount_out);
                             let next_usd_net = next_usd - quote.estimated_fee_usd;
-                            let next_usd_scaled = if next_usd_net > 0.0 { (next_usd_net * 1000.0) as u64 } else { 0 };
+                            let next_usd_scaled = if next_usd_net > 0.0 {
+                                (next_usd_net * 1000.0) as u64
+                            } else {
+                                0
+                            };
 
                             let best = best_seen.entry(next_node.clone()).or_insert(0);
                             if next_usd_scaled > *best {
@@ -197,11 +252,28 @@ impl RoutePlanner {
                     }
 
                     // Try DeBridge
-                    if let Ok(quote) = self.debridge.get_quote(state.node.chain, *target_chain, &state.node.asset, &state.node.asset, state.amount).await {
-                        let next_node = Node { chain: *target_chain, asset: state.node.asset.clone() };
+                    if let Ok(quote) = self
+                        .debridge
+                        .get_quote(
+                            state.node.chain,
+                            *target_chain,
+                            &state.node.asset,
+                            &state.node.asset,
+                            state.amount,
+                        )
+                        .await
+                    {
+                        let next_node = Node {
+                            chain: *target_chain,
+                            asset: state.node.asset.clone(),
+                        };
                         let next_usd = get_usd_value(&state.node.asset, quote.amount_out);
                         let next_usd_net = next_usd - quote.estimated_fee_usd;
-                        let next_usd_scaled = if next_usd_net > 0.0 { (next_usd_net * 1000.0) as u64 } else { 0 };
+                        let next_usd_scaled = if next_usd_net > 0.0 {
+                            (next_usd_net * 1000.0) as u64
+                        } else {
+                            0
+                        };
 
                         let best = best_seen.entry(next_node.clone()).or_insert(0);
                         if next_usd_scaled > *best {
@@ -255,7 +327,11 @@ mod tests {
             .unwrap();
 
         // The advanced router returns the single best route due to Dijkstra pruning
-        assert_eq!(routes.len(), 1, "Should return exactly 1 best route for USDC transfer");
+        assert_eq!(
+            routes.len(),
+            1,
+            "Should return exactly 1 best route for USDC transfer"
+        );
 
         assert!(!routes.is_empty(), "Should find at least one route");
     }
@@ -263,15 +339,21 @@ mod tests {
     #[tokio::test]
     async fn test_find_best_route_multi_hop_eth_to_xlm() {
         let planner = RoutePlanner::new();
-        let routes = planner.find_best_route(
-            Chain::Ethereum,
-            Chain::Stellar,
-            "ETH",
-            "XLM",
-            1, // 1 ETH
-        ).await.unwrap();
+        let routes = planner
+            .find_best_route(
+                Chain::Ethereum,
+                Chain::Stellar,
+                "ETH",
+                "XLM",
+                1, // 1 ETH
+            )
+            .await
+            .unwrap();
 
-        assert!(!routes.is_empty(), "Should find a multi-hop route for ETH -> XLM");
+        assert!(
+            !routes.is_empty(),
+            "Should find a multi-hop route for ETH -> XLM"
+        );
         println!("Best multi-hop route: {:?}", routes[0]);
     }
 }

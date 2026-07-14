@@ -43,5 +43,5 @@ pub trait BridgeProvider: Send + Sync {
 }
 
 pub mod cctp;
-pub mod gas_oracle;
 pub mod debridge;
+pub mod gas_oracle;

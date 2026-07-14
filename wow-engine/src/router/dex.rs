@@ -57,7 +57,7 @@ impl DexProvider {
             dest_asset: dest_asset.to_string(),
             amount_in,
             amount_out,
-            estimated_fee_usd: fee_usd, 
+            estimated_fee_usd: fee_usd,
             duration_seconds: 5,
         })
     }

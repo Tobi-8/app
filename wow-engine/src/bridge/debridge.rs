@@ -1,7 +1,7 @@
+use crate::bridge::gas_oracle::GasOracle;
 use crate::bridge::{BridgeProvider, BridgeQuote, Chain};
 use reqwest_middleware::ClientWithMiddleware;
 use std::sync::Arc;
-use crate::bridge::gas_oracle::GasOracle;
 
 pub struct DeBridgeClient {
     #[allow(dead_code)]
@@ -12,7 +12,8 @@ pub struct DeBridgeClient {
 impl DeBridgeClient {
     pub fn new(oracle: Arc<GasOracle>) -> Self {
         Self {
-            client: crate::http_client::build_resilient_client().expect("Failed to build resilient HTTP client"),
+            client: crate::http_client::build_resilient_client()
+                .expect("Failed to build resilient HTTP client"),
             oracle,
         }
     }

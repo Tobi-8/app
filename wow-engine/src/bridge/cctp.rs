@@ -1,7 +1,7 @@
+use crate::bridge::gas_oracle::GasOracle;
 use crate::bridge::{BridgeProvider, BridgeQuote, Chain};
 use reqwest_middleware::ClientWithMiddleware;
 use std::sync::Arc;
-use crate::bridge::gas_oracle::GasOracle;
 
 pub struct CctpClient {
     #[allow(dead_code)]
@@ -12,7 +12,8 @@ pub struct CctpClient {
 impl CctpClient {
     pub fn new(oracle: Arc<GasOracle>) -> Self {
         Self {
-            client: crate::http_client::build_resilient_client().expect("Failed to build resilient HTTP client"),
+            client: crate::http_client::build_resilient_client()
+                .expect("Failed to build resilient HTTP client"),
             oracle,
         }
     }
