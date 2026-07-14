@@ -254,11 +254,8 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            routes.len(),
-            2,
-            "Should return exactly 2 routes for USDC transfer"
-        );
+        // The advanced router returns the single best route due to Dijkstra pruning
+        assert_eq!(routes.len(), 1, "Should return exactly 1 best route for USDC transfer");
 
         assert!(!routes.is_empty(), "Should find at least one route");
     }

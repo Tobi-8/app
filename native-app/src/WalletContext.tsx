@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { currentUser as initialUser, transactions as initialTransactions, Transaction } from "./data/mockData";
 
 type WalletContextType = {
@@ -7,6 +8,8 @@ type WalletContextType = {
   addTransaction: (tx: Omit<Transaction, "id" | "date" | "status">) => void;
   deposit: (amount: number, method: string) => void;
   withdraw: (amount: number, bank: string) => void;
+  isDepositing: boolean;
+  isWithdrawing: boolean;
 };
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -32,8 +35,8 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const deposit = async (amount: number, method: string) => {
-    try {
+  const depositMutation = useMutation({
+    mutationFn: async ({ amount, method }: { amount: number, method: string }) => {
       const res = await fetch(`${API_BASE_URL}/api/v1/anchor/deposit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -44,7 +47,9 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
         })
       });
       if (!res.ok) throw new Error("Deposit failed");
-      
+      return { amount, method };
+    },
+    onSuccess: ({ amount, method }) => {
       const tx: Transaction = {
         id: `t_${Date.now()}`,
         type: "received",
@@ -58,13 +63,18 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       };
       setTransactions((prev) => [tx, ...prev]);
       setBalance((prev) => prev + amount);
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error(error);
     }
+  });
+
+  const deposit = (amount: number, method: string) => {
+    depositMutation.mutate({ amount, method });
   };
 
-  const withdraw = async (amount: number, bank: string) => {
-    try {
+  const withdrawMutation = useMutation({
+    mutationFn: async ({ amount, bank }: { amount: number, bank: string }) => {
       const res = await fetch(`${API_BASE_URL}/api/v1/anchor/withdraw`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,7 +85,9 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
         })
       });
       if (!res.ok) throw new Error("Withdrawal failed");
-
+      return { amount, bank };
+    },
+    onSuccess: ({ amount, bank }) => {
       const tx: Transaction = {
         id: `t_${Date.now()}`,
         type: "sent",
@@ -89,13 +101,22 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       };
       setTransactions((prev) => [tx, ...prev]);
       setBalance((prev) => prev - amount);
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error(error);
     }
+  });
+
+  const withdraw = (amount: number, bank: string) => {
+    withdrawMutation.mutate({ amount, bank });
   };
 
   return (
-    <WalletContext.Provider value={{ balance, transactions, addTransaction, deposit, withdraw }}>
+    <WalletContext.Provider value={{ 
+      balance, transactions, addTransaction, deposit, withdraw, 
+      isDepositing: depositMutation.isPending, 
+      isWithdrawing: withdrawMutation.isPending 
+    }}>
       {children}
     </WalletContext.Provider>
   );
