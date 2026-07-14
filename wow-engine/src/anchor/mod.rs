@@ -30,7 +30,7 @@ pub struct Sep24InteractiveResponse {
 pub struct Sep38Quote {
     pub id: String,
     pub expires_at: String, // ISO-8601 string
-    pub price: String, // decimal string
+    pub price: String,      // decimal string
     pub sell_asset: String,
     pub sell_amount: String, // decimal string
     pub buy_asset: String,

@@ -46,9 +46,17 @@ mod tests {
         let client = build_resilient_client().expect("Failed to build client");
 
         // The request should eventually complete with a 500 status after retrying
-        let response = client.get(&mock_server.uri()).send().await.expect("Request failed");
+        let response = client
+            .get(&mock_server.uri())
+            .send()
+            .await
+            .expect("Request failed");
 
-        assert_eq!(response.status(), 500, "Expected a 500 response after all retries were exhausted");
+        assert_eq!(
+            response.status(),
+            500,
+            "Expected a 500 response after all retries were exhausted"
+        );
     }
 
     #[tokio::test]
@@ -62,7 +70,11 @@ mod tests {
 
         let client = build_resilient_client().expect("Failed to build client");
 
-        let response = client.get(&mock_server.uri()).send().await.expect("Request failed");
+        let response = client
+            .get(&mock_server.uri())
+            .send()
+            .await
+            .expect("Request failed");
         assert_eq!(response.status(), 200);
     }
 }

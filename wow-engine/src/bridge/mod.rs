@@ -31,7 +31,7 @@ pub struct BridgeQuote {
 
 pub trait BridgeProvider: Send + Sync {
     fn name(&self) -> &'static str;
-    
+
     fn get_quote(
         &self,
         source_chain: Chain,
@@ -42,6 +42,6 @@ pub trait BridgeProvider: Send + Sync {
     ) -> impl std::future::Future<Output = Result<BridgeQuote, anyhow::Error>> + Send;
 }
 
-pub mod debridge;
 pub mod cctp;
 pub mod gas_oracle;
+pub mod debridge;

@@ -6,10 +6,17 @@ pub struct Sep24Client {
     client: ClientWithMiddleware,
 }
 
+impl Default for Sep24Client {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Sep24Client {
     pub fn new() -> Self {
         Self {
-            client: crate::http_client::build_resilient_client().expect("Failed to build resilient HTTP client"),
+            client: crate::http_client::build_resilient_client()
+                .expect("Failed to build resilient HTTP client"),
         }
     }
 

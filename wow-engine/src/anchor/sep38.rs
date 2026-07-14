@@ -6,10 +6,17 @@ pub struct Sep38Client {
     client: ClientWithMiddleware,
 }
 
+impl Default for Sep38Client {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Sep38Client {
     pub fn new() -> Self {
         Self {
-            client: crate::http_client::build_resilient_client().expect("Failed to build resilient HTTP client"),
+            client: crate::http_client::build_resilient_client()
+                .expect("Failed to build resilient HTTP client"),
         }
     }
 
@@ -32,7 +39,8 @@ impl Sep38Client {
         buy_asset: &str,
         sell_amount: f64,
     ) -> Result<Sep38Quote, anyhow::Error> {
-        self.generate_quote(_anchor_domain, sell_asset, buy_asset, sell_amount, 5) // Firm quotes expire faster
+        self.generate_quote(_anchor_domain, sell_asset, buy_asset, sell_amount, 5)
+        // Firm quotes expire faster
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -45,7 +53,7 @@ impl Sep38Client {
         expiration_minutes: i64,
     ) -> Result<Sep38Quote, anyhow::Error> {
         let quote_id = format!("q_sep38_{}", super::generate_uuid());
-        
+
         let (price, buy_amount) = match buy_asset {
             b if b.contains("NGN") => (1450.0, sell_amount * 1450.0),
             b if b.contains("EUR") => (0.92, sell_amount * 0.92),
@@ -66,5 +74,3 @@ impl Sep38Client {
         })
     }
 }
-
-

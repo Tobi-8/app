@@ -4,7 +4,6 @@ use serde::Deserialize;
 pub struct AppConfig {
     #[serde(default = "default_port")]
     pub port: u16,
-    
     // Additional structured configuration fields can be added here
 }
 

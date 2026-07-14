@@ -1,6 +1,6 @@
 use axum_test::TestServer;
 use serde_json::json;
-use wow_engine::api::{create_router, HealthResponse};
+use wow_engine::api::create_router;
 
 #[tokio::test]
 async fn test_health_endpoint() {
@@ -31,7 +31,7 @@ async fn test_quote_endpoint_bad_request() {
 
     let response = server.post("/api/v1/quote").json(&payload).await;
     response.assert_status_bad_request();
-    
+
     let err_msg = response.text();
     assert!(err_msg.contains("Amount in must be greater than zero"));
 }
@@ -49,7 +49,7 @@ async fn test_deposit_endpoint_invalid_address() {
 
     let response = server.post("/api/v1/anchor/deposit").json(&payload).await;
     response.assert_status_bad_request();
-    
+
     let err_msg = response.text();
     assert!(err_msg.contains("Invalid account address"));
 }
@@ -68,7 +68,7 @@ async fn test_anchor_quote_invalid_amount() {
 
     let response = server.post("/api/v1/anchor/quote").json(&payload).await;
     response.assert_status_bad_request();
-    
+
     let err_msg = response.text();
     assert!(err_msg.contains("Sell amount must be greater than zero"));
 }

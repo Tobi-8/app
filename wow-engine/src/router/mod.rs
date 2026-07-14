@@ -249,13 +249,16 @@ mod tests {
     #[tokio::test]
     async fn test_find_best_route_usdc() {
         let planner = RoutePlanner::new();
-        let routes = planner.find_best_route(
-            Chain::Solana,
-            Chain::Stellar,
-            "USDC",
-            "USDC",
-            10000,
-        ).await.unwrap();
+        let routes = planner
+            .find_best_route(Chain::Solana, Chain::Stellar, "USDC", "USDC", 10000)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            routes.len(),
+            2,
+            "Should return exactly 2 routes for USDC transfer"
+        );
 
         assert!(!routes.is_empty(), "Should find at least one route");
     }

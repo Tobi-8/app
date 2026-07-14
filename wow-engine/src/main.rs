@@ -1,6 +1,6 @@
+use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use std::net::SocketAddr;
 
 async fn shutdown_signal() {
     let ctrl_c = async {
@@ -35,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
-    
+
     // Load strongly-typed configuration
     let config = wow_engine::config::AppConfig::load()?;
 
@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     let port = config.port;
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    
+
     tracing::info!("Wow Engine is booting up and routing pipeline conversions...");
     tracing::info!("   Listening on: http://{}", addr);
     tracing::info!("   Endpoints available:");
@@ -62,6 +62,5 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
-    
     Ok(())
 }

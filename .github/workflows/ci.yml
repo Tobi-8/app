@@ -1,0 +1,41 @@
+name: Wow Engine CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'wow-engine/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'wow-engine/**'
+
+jobs:
+  test:
+    name: Rust Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wow-engine
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: wow-engine
+          
+      - name: Check Formatting
+        run: cargo fmt -- --check
+        
+      - name: Clippy Lints
+        run: cargo clippy -- -D warnings
+        
+      - name: Run Tests
+        run: cargo test

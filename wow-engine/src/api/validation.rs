@@ -17,11 +17,14 @@ pub fn validate_asset_code(asset: &str) -> Result<(), String> {
     if asset.is_empty() {
         return Err("Asset code cannot be empty".to_string());
     }
-    
+
     if asset.starts_with("stellar:") {
         let parts: Vec<&str> = asset.split(':').collect();
         if parts.len() != 3 {
-            return Err("Invalid fully qualified Stellar asset format. Must be stellar:CODE:ISSUER".to_string());
+            return Err(
+                "Invalid fully qualified Stellar asset format. Must be stellar:CODE:ISSUER"
+                    .to_string(),
+            );
         }
         let code = parts[1];
         let issuer = parts[2];
@@ -35,7 +38,10 @@ pub fn validate_asset_code(asset: &str) -> Result<(), String> {
     if asset.starts_with("iso4217:") {
         let parts: Vec<&str> = asset.split(':').collect();
         if parts.len() != 2 || parts[1].len() != 3 {
-            return Err("Invalid ISO-4217 asset format. Must be iso4217:CURRENCY (e.g. iso4217:USD)".to_string());
+            return Err(
+                "Invalid ISO-4217 asset format. Must be iso4217:CURRENCY (e.g. iso4217:USD)"
+                    .to_string(),
+            );
         }
         return Ok(());
     }

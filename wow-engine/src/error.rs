@@ -29,7 +29,7 @@ impl IntoResponse for AppError {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
             }
         };
-        
+
         let body = Json(ErrorResponse { error: err_msg });
         (status, body).into_response()
     }
