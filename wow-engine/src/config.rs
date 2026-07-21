@@ -18,11 +18,11 @@ impl AppConfig {
     }
 
     pub fn get_database_url(&self) -> anyhow::Result<String> {
-        self.database_url
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!(
+        self.database_url.clone().ok_or_else(|| {
+            anyhow::anyhow!(
                 "DATABASE_URL environment variable not set. \
                  Example: postgres://postgres:postgres@localhost/wow_engine"
-            ))
+            )
+        })
     }
 }

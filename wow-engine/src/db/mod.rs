@@ -27,9 +27,7 @@ impl Database {
     }
 
     pub async fn health_check(&self) -> Result<(), sqlx::Error> {
-        sqlx::query("SELECT 1")
-            .fetch_one(&self.pool)
-            .await?;
+        sqlx::query("SELECT 1").fetch_one(&self.pool).await?;
         Ok(())
     }
 }

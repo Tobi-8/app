@@ -1,12 +1,12 @@
+use chrono::Utc;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::Transaction;
+use std::time::Duration;
 use uuid::Uuid;
-use wow_engine::db::models::{RouteExecutionInput, RouteExecution};
+use wow_engine::db::models::{RouteExecution, RouteExecutionInput};
 use wow_engine::db::operations::{
     AnchorTransactionRepo, RouteExecutionRepo, UserHistoryRepo, UserQuotaRepo,
 };
-use chrono::Utc;
-use std::time::Duration;
 
 async fn setup_db() -> Result<sqlx::postgres::PgPool, sqlx::Error> {
     let database_url = std::env::var("TEST_DATABASE_URL")
@@ -19,19 +19,28 @@ async fn setup_db() -> Result<sqlx::postgres::PgPool, sqlx::Error> {
         .await?;
 
     // Run migrations
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .ok();
+    sqlx::migrate!("./migrations").run(&pool).await.ok();
 
     Ok(pool)
 }
 
 async fn cleanup_db(pool: &sqlx::postgres::PgPool) -> Result<(), sqlx::Error> {
-    sqlx::query("TRUNCATE anchor_transactions CASCADE").execute(pool).await.ok();
-    sqlx::query("TRUNCATE user_history CASCADE").execute(pool).await.ok();
-    sqlx::query("TRUNCATE user_quotas CASCADE").execute(pool).await.ok();
-    sqlx::query("TRUNCATE route_executions CASCADE").execute(pool).await.ok();
+    sqlx::query("TRUNCATE anchor_transactions CASCADE")
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("TRUNCATE user_history CASCADE")
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("TRUNCATE user_quotas CASCADE")
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("TRUNCATE route_executions CASCADE")
+        .execute(pool)
+        .await
+        .ok();
     Ok(())
 }
 
@@ -46,7 +55,7 @@ async fn test_atomic_route_execution_commit() {
         }
     };
 
-    let user_id = Uuid::new_v7();
+    let user_id = Uuid::now_v7();
     let route_input = RouteExecutionInput {
         user_id,
         source_chain: "Ethereum".to_string(),
@@ -90,59 +99,54 @@ async fn test_atomic_route_execution_commit() {
         "https://anchor.example.com/interactive",
     )
     .await;
-    assert!(anchor_result.is_ok(), "Anchor transaction creation should succeed");
+    assert!(
+        anchor_result.is_ok(),
+        "Anchor transaction creation should succeed"
+    );
 
     // Commit the transaction
     tx.commit().await.expect("Failed to commit transaction");
 
     // Verify all records were persisted
-    let persisted_route = sqlx::query_as::<_, RouteExecution>(
-        "SELECT * FROM route_executions WHERE id = $1"
-    )
-    .bind(route.id)
-    .fetch_one(&pool)
-    .await;
+    let persisted_route =
+        sqlx::query_as::<_, RouteExecution>("SELECT * FROM route_executions WHERE id = $1")
+            .bind(route.id)
+            .fetch_one(&pool)
+            .await;
 
     assert!(
         persisted_route.is_ok(),
         "Route should be persisted after commit"
     );
 
-    let history_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_history WHERE route_execution_id = $1"
-    )
-    .bind(route.id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count history");
+    let history_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM user_history WHERE route_execution_id = $1")
+            .bind(route.id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count history");
 
     assert_eq!(
         history_count.0, 1,
         "User history should be created for the route"
     );
 
-    let quota_check: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_quotas WHERE user_id = $1"
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count quotas");
+    let quota_check: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_quotas WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to count quotas");
 
     assert_eq!(quota_check.0, 1, "Quota record should exist");
 
-    let anchor_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM anchor_transactions WHERE route_execution_id = $1"
-    )
-    .bind(route.id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count anchor transactions");
+    let anchor_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM anchor_transactions WHERE route_execution_id = $1")
+            .bind(route.id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count anchor transactions");
 
-    assert_eq!(
-        anchor_count.0, 1,
-        "Anchor transaction should be created"
-    );
+    assert_eq!(anchor_count.0, 1, "Anchor transaction should be created");
 
     let _ = cleanup_db(&pool).await;
 }
@@ -158,7 +162,7 @@ async fn test_atomic_route_execution_rollback() {
         }
     };
 
-    let user_id = Uuid::new_v7();
+    let user_id = Uuid::now_v7();
     let route_input = RouteExecutionInput {
         user_id,
         source_chain: "Ethereum".to_string(),
@@ -203,56 +207,49 @@ async fn test_atomic_route_execution_rollback() {
     assert!(anchor_result.is_ok());
 
     // Simulate error by rolling back the transaction
-    tx.rollback()
-        .await
-        .expect("Failed to rollback transaction");
+    tx.rollback().await.expect("Failed to rollback transaction");
 
     // Verify NO records were persisted
-    let persisted_route: Result<RouteExecution, _> = sqlx::query_as(
-        "SELECT * FROM route_executions WHERE id = $1"
-    )
-    .bind(route.id)
-    .fetch_one(&pool)
-    .await;
+    let persisted_route: Result<RouteExecution, _> =
+        sqlx::query_as("SELECT * FROM route_executions WHERE id = $1")
+            .bind(route.id)
+            .fetch_one(&pool)
+            .await;
 
     assert!(
         persisted_route.is_err(),
         "Route should NOT be persisted after rollback"
     );
 
-    let history_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_history WHERE route_execution_id = $1"
-    )
-    .bind(route.id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count history");
+    let history_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM user_history WHERE route_execution_id = $1")
+            .bind(route.id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count history");
 
     assert_eq!(
         history_count.0, 0,
         "User history should NOT be created after rollback"
     );
 
-    let quota_check: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_quotas WHERE user_id = $1"
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count quotas");
+    let quota_check: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_quotas WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to count quotas");
 
     assert_eq!(
         quota_check.0, 0,
         "Quota record should NOT be persisted after rollback"
     );
 
-    let anchor_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM anchor_transactions WHERE route_execution_id = $1"
-    )
-    .bind(route.id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count anchor transactions");
+    let anchor_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM anchor_transactions WHERE route_execution_id = $1")
+            .bind(route.id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count anchor transactions");
 
     assert_eq!(
         anchor_count.0, 0,
@@ -279,7 +276,7 @@ async fn test_concurrent_route_executions() {
     for i in 0..5 {
         let pool_clone = pool.clone();
         let handle = tokio::spawn(async move {
-            let user_id = Uuid::new_v7();
+            let user_id = Uuid::now_v7();
             let route_input = RouteExecutionInput {
                 user_id,
                 source_chain: "Ethereum".to_string(),
@@ -293,7 +290,10 @@ async fn test_concurrent_route_executions() {
                 estimated_fee_usd: 2.5 + (i as f64),
             };
 
-            let mut tx = pool_clone.begin().await.expect("Failed to begin transaction");
+            let mut tx = pool_clone
+                .begin()
+                .await
+                .expect("Failed to begin transaction");
 
             let route = RouteExecutionRepo::create_with_history(
                 &mut tx,
@@ -324,12 +324,11 @@ async fn test_concurrent_route_executions() {
 
     // Verify all routes were persisted independently
     for route_id in route_ids {
-        let result = sqlx::query_as::<_, RouteExecution>(
-            "SELECT * FROM route_executions WHERE id = $1"
-        )
-        .bind(route_id)
-        .fetch_one(&pool)
-        .await;
+        let result =
+            sqlx::query_as::<_, RouteExecution>("SELECT * FROM route_executions WHERE id = $1")
+                .bind(route_id)
+                .fetch_one(&pool)
+                .await;
 
         assert!(
             result.is_ok(),
@@ -338,14 +337,15 @@ async fn test_concurrent_route_executions() {
     }
 
     // Verify quota isolation
-    let quota_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_quotas"
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count quotas");
+    let quota_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_quotas")
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to count quotas");
 
-    assert_eq!(quota_count.0, 5, "Each user should have their own quota record");
+    assert_eq!(
+        quota_count.0, 5,
+        "Each user should have their own quota record"
+    );
 
     let _ = cleanup_db(&pool).await;
 }

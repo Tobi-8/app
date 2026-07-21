@@ -1,12 +1,16 @@
 use crate::anchor::{sep24::Sep24Client, sep38::Sep38Client, Sep24InteractiveResponse, Sep38Quote};
 use crate::bridge::Chain;
+use crate::db::models::RouteExecutionInput;
+use crate::db::service::{ExecuteRouteResult, RouteExecutionService};
+use crate::db::Database;
 use crate::error::AppError;
 use crate::router::{RouteOption, RoutePlanner};
 use axum::{
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub mod validation;
 use validation::{validate_asset_code, validate_stellar_address};
@@ -47,6 +51,22 @@ pub struct AnchorQuoteRequest {
     pub sell_amount: f64,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct ExecuteRouteRequest {
+    pub user_id: Uuid,
+    pub source_chain: String,
+    pub dest_chain: String,
+    pub source_asset: String,
+    pub dest_asset: String,
+    pub amount_in: u64,
+    pub amount_out: u64,
+    pub provider: String,
+    pub path: String,
+    pub estimated_fee_usd: f64,
+    pub anchor_domain: Option<String>,
+    pub anchor_transaction_id: Option<String>,
+}
+
 #[derive(Serialize)]
 pub struct HealthResponse {
     pub status: &'static str,
@@ -55,13 +75,15 @@ pub struct HealthResponse {
     pub timestamp: String,
 }
 
-pub fn create_router() -> Router {
+pub fn create_router(db: Option<Database>) -> Router {
     Router::new()
         .route("/api/v1/health", get(health_handler))
         .route("/api/v1/quote", post(quote_handler))
+        .route("/api/v1/execute-route", post(execute_route_handler))
         .route("/api/v1/anchor/deposit", post(deposit_handler))
         .route("/api/v1/anchor/withdraw", post(withdraw_handler))
         .route("/api/v1/anchor/quote", post(anchor_quote_handler))
+        .layer(Extension(db))
 }
 
 async fn health_handler() -> Json<HealthResponse> {
@@ -195,6 +217,58 @@ async fn anchor_quote_handler(
         )
         .await?;
     Ok(Json(quote))
+}
+
+#[tracing::instrument(skip(db), err)]
+async fn execute_route_handler(
+    Extension(db): Extension<Option<Database>>,
+    Json(payload): Json<ExecuteRouteRequest>,
+) -> Result<Json<ExecuteRouteResult>, AppError> {
+    let db = db.ok_or_else(|| {
+        AppError::Internal(anyhow::anyhow!(
+            "Database not configured for this server instance"
+        ))
+    })?;
+
+    if payload.amount_in == 0 {
+        return Err(AppError::BadRequest(
+            "Amount in must be greater than zero".to_string(),
+        ));
+    }
+    if payload.amount_out == 0 {
+        return Err(AppError::BadRequest(
+            "Amount out must be greater than zero".to_string(),
+        ));
+    }
+    if payload.estimated_fee_usd < 0.0 {
+        return Err(AppError::BadRequest(
+            "Estimated fee cannot be negative".to_string(),
+        ));
+    }
+
+    let route_input = RouteExecutionInput {
+        user_id: payload.user_id,
+        source_chain: payload.source_chain,
+        dest_chain: payload.dest_chain,
+        source_asset: payload.source_asset,
+        dest_asset: payload.dest_asset,
+        amount_in: payload.amount_in as i64,
+        amount_out: payload.amount_out as i64,
+        provider: payload.provider,
+        path: payload.path,
+        estimated_fee_usd: payload.estimated_fee_usd,
+    };
+
+    let result = RouteExecutionService::execute_route_with_quota(
+        &db,
+        route_input,
+        payload.anchor_domain.as_deref(),
+        payload.anchor_transaction_id.as_deref(),
+    )
+    .await
+    .map_err(|e| AppError::BadRequest(format!("Route execution failed: {}", e)))?;
+
+    Ok(Json(result))
 }
 
 #[cfg(test)]

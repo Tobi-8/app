@@ -14,7 +14,7 @@ impl RouteExecutionRepo {
         history_action: &str,
         history_details: &str,
     ) -> Result<RouteExecution, sqlx::Error> {
-        let id = Uuid::new_v7();
+        let id = Uuid::now_v7();
         let now = Utc::now();
 
         let route = sqlx::query_as::<_, RouteExecution>(
@@ -49,7 +49,7 @@ impl RouteExecutionRepo {
             VALUES ($1, $2, $3, $4, $5, $6)
             "#,
         )
-        .bind(Uuid::new_v7())
+        .bind(Uuid::now_v7())
         .bind(input.user_id)
         .bind(id)
         .bind(history_action)
@@ -95,7 +95,7 @@ impl UserHistoryRepo {
         action: &str,
         details: &str,
     ) -> Result<UserHistory, sqlx::Error> {
-        let id = Uuid::new_v7();
+        let id = Uuid::now_v7();
         let now = Utc::now();
 
         sqlx::query_as::<_, UserHistory>(
@@ -135,7 +135,7 @@ impl UserQuotaRepo {
             RETURNING *
             "#,
         )
-        .bind(Uuid::new_v7())
+        .bind(Uuid::now_v7())
         .bind(user_id)
         .bind(10000.0)
         .bind(0.0)
@@ -180,7 +180,7 @@ impl AnchorTransactionRepo {
         transaction_id: &str,
         url: &str,
     ) -> Result<AnchorTransaction, sqlx::Error> {
-        let id = Uuid::new_v7();
+        let id = Uuid::now_v7();
         let now = Utc::now();
 
         sqlx::query_as::<_, AnchorTransaction>(

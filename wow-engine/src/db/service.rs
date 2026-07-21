@@ -3,9 +3,10 @@ use crate::db::operations::{
     AnchorTransactionRepo, RouteExecutionRepo, UserHistoryRepo, UserQuotaRepo,
 };
 use crate::db::Database;
+use serde::Serialize;
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ExecuteRouteResult {
     pub route_id: Uuid,
     pub anchor_transaction_id: Option<Uuid>,
@@ -115,10 +116,10 @@ mod tests {
 
     #[test]
     fn test_execute_route_result_creation() {
-        let route_id = Uuid::new_v7();
+        let route_id = Uuid::now_v7();
         let result = ExecuteRouteResult {
             route_id,
-            anchor_transaction_id: Some(Uuid::new_v7()),
+            anchor_transaction_id: Some(Uuid::now_v7()),
             success: true,
         };
 
