@@ -42,8 +42,8 @@ pub struct ValidatedAnchorQuoteRequest {
 
 pub struct ValidatedExecuteRouteRequest {
     pub user_id: Uuid,
-    pub source_chain: String,
-    pub dest_chain: String,
+    pub source_chain: Chain,
+    pub dest_chain: Chain,
     pub source_asset: String,
     pub dest_asset: String,
     pub amount_in: u64,
@@ -110,9 +110,7 @@ fn validate_quote_fields(
     amount_in: u64,
 ) -> Result<(), AppError> {
     if source_asset.trim().is_empty() {
-        return Err(AppError::BadRequest(
-            "Source asset cannot be empty".into(),
-        ));
+        return Err(AppError::BadRequest("Source asset cannot be empty".into()));
     }
     if dest_asset.trim().is_empty() {
         return Err(AppError::BadRequest(
@@ -167,9 +165,7 @@ fn validate_chain_asset_compat(chain: Chain, asset: &str, label: &str) -> Result
 
 fn validate_domain(domain: &str) -> Result<(), AppError> {
     if domain.trim().is_empty() {
-        return Err(AppError::BadRequest(
-            "Anchor domain cannot be empty".into(),
-        ));
+        return Err(AppError::BadRequest("Anchor domain cannot be empty".into()));
     }
     if domain.contains(' ') {
         return Err(AppError::BadRequest(
@@ -194,9 +190,8 @@ fn parse_chain(s: &str) -> Result<Chain, AppError> {
 
 impl FromRequest for ValidatedQuoteRequest {
     type Error = AppError;
-    type Future = std::pin::Pin<
-        Box<dyn std::future::Future<Output = Result<Self, Self::Error>> + Send>,
-    >;
+    type Future =
+        std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self, Self::Error>> + Send>>;
 
     fn from_request(req: &Request<Body>) -> Self::Future {
         let fut = async {
@@ -222,9 +217,8 @@ impl FromRequest for ValidatedQuoteRequest {
 
 impl FromRequest for ValidatedDepositRequest {
     type Error = AppError;
-    type Future = std::pin::Pin<
-        Box<dyn std::future::Future<Output = Result<Self, Self::Error>> + Send>,
-    >;
+    type Future =
+        std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self, Self::Error>> + Send>>;
 
     fn from_request(req: &Request<Body>) -> Self::Future {
         let fut = async {
@@ -237,10 +231,7 @@ impl FromRequest for ValidatedDepositRequest {
                 )));
             }
             if let Err(e) = validate_asset_code(&raw.asset_code) {
-                return Err(AppError::BadRequest(format!(
-                    "Invalid asset code: {}",
-                    e
-                )));
+                return Err(AppError::BadRequest(format!("Invalid asset code: {}", e)));
             }
             Ok(ValidatedDepositRequest {
                 anchor_domain: raw.anchor_domain,
@@ -254,9 +245,8 @@ impl FromRequest for ValidatedDepositRequest {
 
 impl FromRequest for ValidatedWithdrawRequest {
     type Error = AppError;
-    type Future = std::pin::Pin<
-        Box<dyn std::future::Future<Output = Result<Self, Self::Error>> + Send>,
-    >;
+    type Future =
+        std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self, Self::Error>> + Send>>;
 
     fn from_request(req: &Request<Body>) -> Self::Future {
         let fut = async {
@@ -269,10 +259,7 @@ impl FromRequest for ValidatedWithdrawRequest {
                 )));
             }
             if let Err(e) = validate_asset_code(&raw.asset_code) {
-                return Err(AppError::BadRequest(format!(
-                    "Invalid asset code: {}",
-                    e
-                )));
+                return Err(AppError::BadRequest(format!("Invalid asset code: {}", e)));
             }
             Ok(ValidatedWithdrawRequest {
                 anchor_domain: raw.anchor_domain,
@@ -286,25 +273,18 @@ impl FromRequest for ValidatedWithdrawRequest {
 
 impl FromRequest for ValidatedAnchorQuoteRequest {
     type Error = AppError;
-    type Future = std::pin::Pin<
-        Box<dyn std::future::Future<Output = Result<Self, Self::Error>> + Send>,
-    >;
+    type Future =
+        std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self, Self::Error>> + Send>>;
 
     fn from_request(req: &Request<Body>) -> Self::Future {
         let fut = async {
             let Json(raw) = Json::<RawAnchorQuoteRequest>::from_request(req).await?;
             validate_domain(&raw.anchor_domain)?;
             if let Err(e) = validate_asset_code(&raw.sell_asset) {
-                return Err(AppError::BadRequest(format!(
-                    "Invalid sell asset: {}",
-                    e
-                )));
+                return Err(AppError::BadRequest(format!("Invalid sell asset: {}", e)));
             }
             if let Err(e) = validate_asset_code(&raw.buy_asset) {
-                return Err(AppError::BadRequest(format!(
-                    "Invalid buy asset: {}",
-                    e
-                )));
+                return Err(AppError::BadRequest(format!("Invalid buy asset: {}", e)));
             }
             if raw.sell_amount <= 0.0 {
                 return Err(AppError::BadRequest(
@@ -324,9 +304,8 @@ impl FromRequest for ValidatedAnchorQuoteRequest {
 
 impl FromRequest for ValidatedExecuteRouteRequest {
     type Error = AppError;
-    type Future = std::pin::Pin<
-        Box<dyn std::future::Future<Output = Result<Self, Self::Error>> + Send>,
-    >;
+    type Future =
+        std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self, Self::Error>> + Send>>;
 
     fn from_request(req: &Request<Body>) -> Self::Future {
         let fut = async {
@@ -351,9 +330,7 @@ impl FromRequest for ValidatedExecuteRouteRequest {
                 ));
             }
             if raw.source_asset.trim().is_empty() {
-                return Err(AppError::BadRequest(
-                    "Source asset cannot be empty".into(),
-                ));
+                return Err(AppError::BadRequest("Source asset cannot be empty".into()));
             }
             if raw.dest_asset.trim().is_empty() {
                 return Err(AppError::BadRequest(
@@ -372,8 +349,8 @@ impl FromRequest for ValidatedExecuteRouteRequest {
 
             Ok(ValidatedExecuteRouteRequest {
                 user_id: raw.user_id,
-                source_chain: raw.source_chain,
-                dest_chain: raw.dest_chain,
+                source_chain,
+                dest_chain,
                 source_asset: raw.source_asset,
                 dest_asset: raw.dest_asset,
                 amount_in: raw.amount_in,
@@ -395,18 +372,8 @@ mod tests {
 
     #[test]
     fn test_validate_chain_asset_compat_stellar_valid() {
-        assert!(validate_chain_asset_compat(
-            Chain::Stellar,
-            "USDC",
-            "source"
-        )
-        .is_ok());
-        assert!(validate_chain_asset_compat(
-            Chain::Stellar,
-            "XLM",
-            "source"
-        )
-        .is_ok());
+        assert!(validate_chain_asset_compat(Chain::Stellar, "USDC", "source").is_ok());
+        assert!(validate_chain_asset_compat(Chain::Stellar, "XLM", "source").is_ok());
         assert!(validate_chain_asset_compat(
             Chain::Stellar,
             "stellar:USDC:GA5Z3IX5VQ3N6FB77T342A27RWRN7CKEZ63M3W7S5VJB3D77J6F2JAFK",
@@ -417,40 +384,17 @@ mod tests {
 
     #[test]
     fn test_validate_chain_asset_compat_stellar_invalid() {
-        assert!(validate_chain_asset_compat(
-            Chain::Stellar,
-            "",
-            "source"
-        )
-        .is_err());
-        assert!(validate_chain_asset_compat(
-            Chain::Stellar,
-            "VERYLONGASSETCODE12345",
-            "dest"
-        )
-        .is_err());
+        assert!(validate_chain_asset_compat(Chain::Stellar, "", "source").is_err());
+        assert!(
+            validate_chain_asset_compat(Chain::Stellar, "VERYLONGASSETCODE12345", "dest").is_err()
+        );
     }
 
     #[test]
     fn test_validate_chain_asset_compat_evm() {
-        assert!(validate_chain_asset_compat(
-            Chain::Ethereum,
-            "ETH",
-            "source"
-        )
-        .is_ok());
-        assert!(validate_chain_asset_compat(
-            Chain::Ethereum,
-            "0xABC",
-            "dest"
-        )
-        .is_ok());
-        assert!(validate_chain_asset_compat(
-            Chain::Arbitrum,
-            "USDC",
-            "source"
-        )
-        .is_ok());
+        assert!(validate_chain_asset_compat(Chain::Ethereum, "ETH", "source").is_ok());
+        assert!(validate_chain_asset_compat(Chain::Ethereum, "0xABC", "dest").is_ok());
+        assert!(validate_chain_asset_compat(Chain::Arbitrum, "USDC", "source").is_ok());
     }
 
     #[test]
@@ -465,12 +409,7 @@ mod tests {
 
     #[test]
     fn test_validate_chain_asset_compat_solana() {
-        assert!(validate_chain_asset_compat(
-            Chain::Solana,
-            "SOL",
-            "source"
-        )
-        .is_ok());
+        assert!(validate_chain_asset_compat(Chain::Solana, "SOL", "source").is_ok());
         assert!(validate_chain_asset_compat(
             Chain::Solana,
             "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -500,41 +439,15 @@ mod tests {
 
     #[test]
     fn test_validate_quote_fields() {
-        assert!(validate_quote_fields(
-            Chain::Ethereum,
-            Chain::Stellar,
-            "ETH",
-            "USDC",
-            1000,
-        )
-        .is_ok());
+        assert!(
+            validate_quote_fields(Chain::Ethereum, Chain::Stellar, "ETH", "USDC", 1000,).is_ok()
+        );
 
-        assert!(validate_quote_fields(
-            Chain::Ethereum,
-            Chain::Stellar,
-            "",
-            "USDC",
-            1000,
-        )
-        .is_err());
+        assert!(validate_quote_fields(Chain::Ethereum, Chain::Stellar, "", "USDC", 1000,).is_err());
 
-        assert!(validate_quote_fields(
-            Chain::Ethereum,
-            Chain::Stellar,
-            "ETH",
-            "",
-            1000,
-        )
-        .is_err());
+        assert!(validate_quote_fields(Chain::Ethereum, Chain::Stellar, "ETH", "", 1000,).is_err());
 
-        assert!(validate_quote_fields(
-            Chain::Ethereum,
-            Chain::Stellar,
-            "ETH",
-            "USDC",
-            0,
-        )
-        .is_err());
+        assert!(validate_quote_fields(Chain::Ethereum, Chain::Stellar, "ETH", "USDC", 0,).is_err());
 
         // Stellar dest must have valid Stellar asset
         assert!(validate_quote_fields(
@@ -553,19 +466,9 @@ mod tests {
         assert!(validate_chain_asset_compat(Chain::Ethereum, "", "source").is_err());
 
         // Invalid chars for EVM
-        assert!(validate_chain_asset_compat(
-            Chain::Arbitrum,
-            "US DC",
-            "dest"
-        )
-        .is_err());
+        assert!(validate_chain_asset_compat(Chain::Arbitrum, "US DC", "dest").is_err());
 
         // Stellar rejects non-compliant asset
-        assert!(validate_chain_asset_compat(
-            Chain::Stellar,
-            "not valid asset",
-            "source"
-        )
-        .is_err());
+        assert!(validate_chain_asset_compat(Chain::Stellar, "not valid asset", "source").is_err());
     }
 }

@@ -10,8 +10,8 @@ use axum::{
 };
 use serde::Serialize;
 
-pub mod validation;
 pub mod validated_request;
+pub mod validation;
 
 use validated_request::{
     ValidatedAnchorQuoteRequest, ValidatedDepositRequest, ValidatedExecuteRouteRequest,
@@ -63,7 +63,13 @@ async fn quote_handler(
 ) -> Result<Json<QuoteResponse>, AppError> {
     let planner = RoutePlanner::new();
     let routes = planner
-        .find_best_route(source_chain, dest_chain, &source_asset, &dest_asset, amount_in)
+        .find_best_route(
+            source_chain,
+            dest_chain,
+            &source_asset,
+            &dest_asset,
+            amount_in,
+        )
         .await?;
     Ok(Json(QuoteResponse { routes }))
 }
@@ -140,8 +146,8 @@ async fn execute_route_handler(
 
     let route_input = RouteExecutionInput {
         user_id,
-        source_chain,
-        dest_chain,
+        source_chain: source_chain.to_string(),
+        dest_chain: dest_chain.to_string(),
         source_asset,
         dest_asset,
         amount_in: amount_in as i64,
