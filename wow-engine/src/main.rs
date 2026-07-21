@@ -39,12 +39,27 @@ async fn main() -> anyhow::Result<()> {
     // Load strongly-typed configuration
     let config = wow_engine::config::AppConfig::load()?;
 
-    // 1. Initialize API router with CORS enabled for seamless frontend calls
-    let app = wow_engine::api::create_router()
+    // 1. Connect to the database (required for route execution/quota tracking)
+    let db = match config.get_database_url() {
+        Ok(url) => match wow_engine::db::Database::new(&url).await {
+            Ok(db) => Some(db),
+            Err(err) => {
+                tracing::warn!("Failed to connect to database: {err}. /api/v1/execute-route will be unavailable.");
+                None
+            }
+        },
+        Err(err) => {
+            tracing::warn!("{err}. /api/v1/execute-route will be unavailable.");
+            None
+        }
+    };
+
+    // 2. Initialize API router with CORS enabled for seamless frontend calls
+    let app = wow_engine::api::create_router(db)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http());
 
-    // 2. Bind TCP listener on configured port
+    // 3. Bind TCP listener on configured port
     let port = config.port;
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -54,11 +69,12 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("   Endpoints available:");
     tracing::info!("     - GET  /api/v1/health          (Health Check)");
     tracing::info!("     - POST /api/v1/quote           (Quoting Pathfinder)");
+    tracing::info!("     - POST /api/v1/execute-route   (Atomic Route Execution)");
     tracing::info!("     - POST /api/v1/anchor/deposit  (SEP-24 Deposit Anchor / On-ramp)");
     tracing::info!("     - POST /api/v1/anchor/withdraw (SEP-24 Withdraw Anchor / Off-ramp)");
     tracing::info!("     - POST /api/v1/anchor/quote    (SEP-38 Anchor Quotes)");
 
-    // 3. Serve incoming TCP requests through Axum pipeline
+    // 4. Serve incoming TCP requests through Axum pipeline
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
